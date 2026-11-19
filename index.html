@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Клятва Рыцаря: Башня Дракона</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+  html, body { background: #09090d; color: #eee; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  #game-container { position: relative; width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; background: #16161e; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; width: 100%; height: 100%; object-fit: contain; touch-action: none; }
+  
+  .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, rgba(22, 22, 32, 0.94), rgba(8, 8, 12, 0.98)); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; z-index: 30; }
+  h1 { color: #f5b041; font-size: clamp(20px, 4.5vw, 32px); margin-bottom: 12px; text-shadow: 0 0 18px rgba(245, 176, 65, 0.45); }
+  p { font-size: clamp(13px, 2.5vw, 16px); line-height: 1.5; max-width: 580px; color: #d0d0e0; margin-bottom: 18px; }
+  .main-btn { background: linear-gradient(180deg, #e67e22, #c0392b); color: #fff; border: 1px solid #f39c12; padding: 14px 36px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; z-index: 40; box-shadow: 0 4px 16px rgba(211, 84, 0, 0.5); }
+  .main-btn:active { transform: scale(0.97); }
+  .hidden { display: none !important; }
+
+  #hud { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 5; gap: 8px; }
+  .bar-box { background: rgba(10, 10, 16, 0.78); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); min-width: 150px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  .stat-row { display: flex; justify-content: space-between; font-size: 11px; color: #ddd; margin-top: 4px; }
+  .stat-row:first-child { margin-top: 0; }
+  .bar { width: 100%; height: 8px; background: #22222c; border-radius: 4px; overflow: hidden; margin-top: 2px; border: 1px solid rgba(0,0,0,0.5); }
+  .hp-fill { height: 100%; background: linear-gradient(90deg, #c0392b, #ff5e57); transition: width 0.15s; }
+  .stamina-fill { height: 100%; background: linear-gradient(90deg, #2980b9, #54a0ff); transition: width 0.1s; }
+  .xp-fill { height: 100%; background: linear-gradient(90deg, #d4ac0d, #ffeaa7); transition: width 0.25s; }
+  
+  #stage-title { font-weight: bold; color: #f5b041; font-size: clamp(12px, 2.3vw, 15px); text-shadow: 1px 1px 3px #000; background: rgba(10, 10, 16, 0.72); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); text-align: right; }
+
+  #touch-controls { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+  #joy-zone { position: absolute; left: 18px; bottom: 18px; width: 115px; height: 115px; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
+  #joy-knob { position: absolute; left: 34px; top: 34px; width: 43px; height: 43px; background: radial-gradient(circle at 30% 30%, #f8c291, #e58e26); border-radius: 50%; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+
+  .action-btns { position: absolute; right: 18px; bottom: 22px; display: flex; gap: 14px; pointer-events: auto; touch-action: none; }
+  .touch-btn { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); color: #fff; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: center; touch-action: none; box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+  #btn-shield { background: radial-gradient(circle at 30% 30%, rgba(52, 152, 219, 0.85), rgba(41, 128, 185, 0.6)); }
+  #btn-shield.active { background: #3498db; border-color: #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.6); }
+  #btn-attack { background: radial-gradient(circle at 30% 30%, rgba(231, 76, 60, 0.9), rgba(192, 57, 43, 0.65)); }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="hud" class="hidden">
+    <div class="bar-box">
+      <div class="stat-row"><span>Здоровье</span><span id="hp-text">100/100</span></div>
+      <div class="bar"><div id="hp-bar" class="hp-fill" style="width:100%"></div></div>
+      
+      <div class="stat-row"><span>Выносливость</span></div>
+      <div class="bar"><div id="stamina-bar" class="stamina-fill" style="width:100%"></div></div>
+
+      <div class="stat-row"><span style="color:#f1c40f; font-weight:bold;" id="lvl-text">Уровень 1</span><span id="xp-text">0/50</span></div>
+      <div class="bar"><div id="xp-bar" class="xp-fill" style="width:0%"></div></div>
+    </div>
+    <div id="stage-title">Локация 1: Пепелище</div>
+  </div>
+
+  <div id="touch-controls" class="hidden">
+    <div id="joy-zone"><div id="joy-knob"></div></div>
+    <div class="action-btns">
+      <div id="btn-shield" class="touch-btn">ЩИТ</div>
+      <div id="btn-attack" class="touch-btn">МЕЧ</div>
+    </div>
+  </div>
+
+  <div id="start-screen" class="overlay">
+    <h1>КЛЯТВА ПОСЛЕДНЕГО ГВАРДЕЙЦА</h1>
+    <p>
+      Королевская армия пала в один день. Древний Дракон обрушился с небес, обратив в пепел полки твоего короля, и унес Принцессу в заброшенную Черную Башню.<br><br>
+      Сквозь дым и пепел ты идешь к башне. Обходи тяжелых щитоносцев со спины, уклоняйся от рывков копейщиков и держи блок против драконьего пламени!
+    </p>
+    <button type="button" id="btn-start" class="main-btn" onclick="startGame()">Вступить в бой</button>
+  </div>
+
+  <div id="end-screen" class="overlay hidden">
+    <h1 id="end-title">ПОБЕДА!</h1>
+    <p id="end-text"></p>
+    <button type="button" id="btn-restart" class="main-btn" onclick="restartGame()">Сыграть еще раз</button>
+  </div>
+
+  <canvas id="game" width="800" height="500"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let gameState = 'menu';
+let stage = 1;
+let animTick = 0;
+let shakeTime = 0;
+let shakeIntensity = 0;
+
+const keys = {};
+const touchInput = { x: 0, y: 0, blocking: false };
+
+function triggerShake(time, intensity) {
+  shakeTime = time;
+  shakeIntensity = intensity;
+}
+
+window.addEventListener('keydown', function(e) {
+  keys[e.code] = true;
+  if (e.code === 'Space' && gameState === 'playing') knightAttack();
+});
+window.addEventListener('keyup', function(e) { keys[e.code] = false; });
+
+const joyZone = document.getElementById('joy-zone');
+const joyKnob = document.getElementById('joy-knob');
+let joyTouchId = null;
+
+joyZone.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  const touch = e.changedTouches.item(0);
+  if (touch) {
+    joyTouchId = touch.identifier;
+    updateJoystick(touch);
+  }
+}, { passive: false });
+
+joyZone.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches.item(i);
+    if (t && t.identifier === joyTouchId) {
+      updateJoystick(t);
+    }
+  }
+}, { passive: false });
+
+function resetJoystick(e) {
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches.item(i);
+    if (t && t.identifier === joyTouchId) {
+      joyTouchId = null;
+      touchInput.x = 0;
+      touchInput.y = 0;
+      joyKnob.style.transform = 'translate(0px, 0px)';
+    }
+  }
+}
+joyZone.addEventListener('touchend', resetJoystick);
+joyZone.addEventListener('touchcancel', resetJoystick);
+
+function updateJoystick(touch) {
+  const rect = joyZone.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  let dx = touch.clientX - centerX;
+  let dy = touch.clientY - centerY;
+  const maxDist = rect.width / 2 - 20;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist > maxDist) {
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+  }
+  joyKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+  touchInput.x = dx / maxDist;
+  touchInput.y = dy / maxDist;
+}
+
+const btnAttack = document.getElementById('btn-attack');
+const btnShield = document.getElementById('btn-shield');
+
+btnAttack.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  if (gameState === 'playing') knightAttack();
+}, { passive: false });
+
+btnShield.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  touchInput.blocking = true;
+  btnShield.classList.add('active');
+}, { passive: false });
+
+function releaseShield(e) {
+  e.preventDefault();
+  touchInput.blocking = false;
+  btnShield.classList.remove('active');
+}
+btnShield.addEventListener('touchend', releaseShield);
+btnShield.addEventListener('touchcancel', releaseShield);
+
+const knight = {
+  x: 100, y: 250, r: 18, speed: 3.5,
+  hp: 100, maxHp: 100,
+  stamina: 100, maxStamina: 100,
+  level: 1, xp: 0, maxXp: 50,
+  damage: 25,
+  dirX: 1, dirY: 0,
+  walkPhase: 0,
+  attackTimer: 0,
+  blocking: false,
+  invuln: 0
+};
+
+let enemies = [];
+let fireballs = [];
+let potions = [];
+let obstacles = [];
+let decor = [];
+let particles = [];
+let ambientAsh = [];
+let floatingTexts = [];
+let princess = null;
+
+function spawnParticles(x, y, count, color, speedMax, sizeMax, lifeMax) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 0.5 + Math.random() * speedMax;
+    particles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      size: 1.5 + Math.random() * sizeMax,
+      color: color,
+      life: 15 + Math.floor(Math.random() * lifeMax),
+      maxLife: 15 + lifeMax
+    });
+  }
+}
+
+function initAmbientAsh() {
+  ambientAsh = [];
+  for (let i = 0; i < 35; i++) {
+ambientAsh.push({
+x: Math.random() * 800,
+y: Math.random() * 500,
+vx: -0.4 - Math.random() * 0.6,
+vy: -0.2 + Math.random() * 0.4,
+size: 1 + Math.random() * 2,
+ember: Math.random() > 0.7
+});
+}
+}
+function addFloatingText(x, y, text, color) {
+floatingTexts.push({ x: x, y: y, text: text, color: color, life: 60 });
+}
+function gainXp(amount) {
+knight.xp += amount;
+addFloatingText(knight.x, knight.y - 25, '+' + amount + ' EXP', '#f1c40f');
+spawnParticles(knight.x, knight.y, 18, '#f1c40f', 3.5, 3, 25);
+while (knight.xp >= knight.maxXp) {
+knight.xp -= knight.maxXp;
+knight.level++;
+knight.maxXp = Math.round(knight.maxXp * 1.5);
+knight.maxHp += 25;
+knight.hp = knight.maxHp;
+knight.maxStamina += 15;
+knight.stamina = knight.maxStamina;
+knight.damage += 8;
+addFloatingText(knight.x, knight.y - 45, 'НОВЫЙ УРОВЕНЬ ' + knight.level + '!', '#2ecc71');
+spawnParticles(knight.x, knight.y, 30, '#2ecc71', 4.5, 4, 30);
+}
+}
+function generateEnvironment(num) {
+obstacles = [];
+decor = [];
+particles = [];
+if (num === 1) {
+decor.push(
+{ type: 'grass', x: 140, y: 90, r: 45 },
+{ type: 'grass', x: 640, y: 100, r: 50 },
+{ type: 'grass', x: 220, y: 410, r: 55 },
+{ type: 'grass', x: 670, y: 400, r: 40 },
+{ type: 'crater', x: 310, y: 230, r: 38 },
+{ type: 'crater', x: 520, y: 340, r: 44 },
+{ type: 'embers', x: 240, y: 150, r: 18 },
+{ type: 'embers', x: 460, y: 130, r: 22 },
+{ type: 'embers', x: 580, y: 290, r: 16 }
+);
+obstacles.push(
+{ x: 250, y: 140, r: 24, kind: 'wagon' },
+{ x: 430, y: 370, r: 22, kind: 'rock' },
+{ x: 620, y: 140, r: 20, kind: 'rock' }
+);
+} else if (num === 2) {
+obstacles.push(
+{ x: 280, y: 150, r: 26, kind: 'pillar' },
+{ x: 280, y: 350, r: 26, kind: 'pillar' },
+{ x: 520, y: 150, r: 26, kind: 'pillar' },
+{ x: 520, y: 350, r: 26, kind: 'pillar' }
+);
+decor.push(
+{ type: 'torch', x: 180, y: 42 },
+{ type: 'torch', x: 400, y: 42 },
+{ type: 'torch', x: 620, y: 42 }
+);
+} else if (num === 3) {
+obstacles.push(
+{ x: 340, y: 140, r: 22, kind: 'brazier' },
+{ x: 340, y: 360, r: 22, kind: 'brazier' }
+);
+decor.push(
+{ type: 'lava_crack', x: 480, y: 200, r: 40 },
+{ type: 'lava_crack', x: 610, y: 330, r: 35 }
+);
+}
+}
+function setupStage(num) {
+stage = num;
+fireballs = [];
+potions = [];
+enemies = [];
+princess = null;
+knight.x = 80;
+knight.y = 250;
+generateEnvironment(num);
+const titleEl = document.getElementById('stage-title');
+if (stage === 1) {
+titleEl.textContent = 'Локация 1: Пепелище (Копейщик)';
+enemies.push({
+x: 540, y: 250, r: 20, hp: 70, maxHp: 70,
+speed: 1.8, dmg: 16, xpReward: 50, cd: 0,
+dirX: -1, dirY: 0,
+dashWindup: 0, dashTimer: 0, dashVx: 0, dashVy: 0,
+type: 'spearman'
+});
+potions.push({ x: 350, y: 95, collected: false });
+} else if (stage === 2) {
+titleEl.textContent = 'Локация 2: Зал Башни (Щитоносец и Копейщик)';
+enemies.push({
+x: 440, y: 160, r: 22, hp: 100, maxHp: 100,
+speed: 1.45, dmg: 20, xpReward: 55, cd: 0,
+dirX: -1, dirY: 0,
+type: 'shieldbearer'
+});
+enemies.push({
+x: 580, y: 350, r: 20, hp: 75, maxHp: 75,
+speed: 1.9, dmg: 16, xpReward: 45, cd: 0,
+dirX: -1, dirY: 0,
+dashWindup: 0, dashTimer: 0, dashVx: 0, dashVy: 0,
+type: 'spearman'
+});
+potions.push({ x: 400, y: 430, collected: false });
+} else if (stage === 3) {
+titleEl.textContent = 'Локация 3: Логово Древнего Дракона';
+enemies.push({
+x: 570, y: 250, r: 44, hp: 300, maxHp: 300,
+speed: 1.25, dmg: 26, xpReward: 250, cd: 60,
+dirX: -1, dirY: 0,
+breathTimer: 0, enraged: false,
+type: 'dragon'
+});
+princess = { x: 730, y: 250, r: 16 };
+}
+}
+function resolveObstacles(entity) {
+obstacles.forEach(function(ob) {
+const dx = entity.x - ob.x;
+const dy = entity.y - ob.y;
+const dist = Math.hypot(dx, dy);
+const minDist = entity.r + ob.r;
+if (dist < minDist && dist > 0) {
+const push = minDist - dist;
+entity.x += (dx / dist) * push;
+entity.y += (dy / dist) * push;
+}
+});
+}
+function startGame() {
+if (gameState === 'playing') return;
+document.getElementById('start-screen').classList.add('hidden');
+document.getElementById('hud').classList.remove('hidden');
+document.getElementById('touch-controls').classList.remove('hidden');
+knight.level = 1;
+knight.xp = 0;
+knight.maxXp = 50;
+knight.maxHp = 100;
+knight.hp = 100;
+knight.maxStamina = 100;
+knight.stamina = 100;
+knight.damage = 25;
+floatingTexts = [];
+initAmbientAsh();
+setupStage(1);
+gameState = 'playing';
+requestAnimationFrame(loop);
+}
+function restartGame() {
+document.getElementById('end-screen').classList.add('hidden');
+gameState = 'menu';
+startGame();
+}
+function endGame(win) {
+gameState = 'end';
+document.getElementById('hud').classList.add('hidden');
+document.getElementById('touch-controls').classList.add('hidden');
+const endScreen = document.getElementById('end-screen');
+const title = document.getElementById('end-title');
+const text = document.getElementById('end-text');
+endScreen.classList.remove('hidden');
+if (win) {
+title.textContent = 'КЛЯТВА ИСПОЛНЕНА!';
+title.style.color = '#2ecc71';
+text.innerHTML = 'Древний Дракон повержен! Ты достиг ' + knight.level + '-го уровня, открыл темницу и освободил Принцессу. Память о павших товарищах отмщена!';
+} else {
+title.textContent = 'ТЫ ПАЛ В БОЮ...';
+title.style.color = '#e74c3c';
+text.innerHTML = 'Тьма поглотила последнего гвардейца. Обходи щитоносцев со спины, уклоняйся от рывков копейщиков и зажимай ЩИТ против огня!';
+}
+}
+function knightAttack() {
+if (knight.attackTimer > 0 || knight.stamina < 15) return;
+knight.attackTimer = 14;
+knight.stamina -= 15;
+const reach = 72;
+const hitX = knight.x + knight.dirX * 36;
+const hitY = knight.y + knight.dirY * 36;
+enemies.forEach(function(en) {
+const dist = Math.hypot(en.x - hitX, en.y - hitY);
+if (dist < en.r + reach * 0.6) {
+let dmgDealt = knight.damage;
+let blockedByShield = false;
+if (en.type === 'shieldbearer') {
+const toKnightX = (knight.x - en.x);
+const toKnightY = (knight.y - en.y);
+const len = Math.hypot(toKnightX, toKnightY) || 1;
+const dot = (toKnightX / len) * en.dirX + (toKnightY / len) * en.dirY;
+if (dot > 0.35) {
+dmgDealt = Math.max(4, Math.round(knight.damage * 0.3));
+blockedByShield = true;
+}
+}
+en.hp -= dmgDealt;
+if (blockedByShield) {
+addFloatingText(en.x, en.y - en.r - 8, 'ЩИТ (-' + dmgDealt + ')', '#74b9ff');
+spawnParticles(en.x + en.dirX * 16, en.y + en.dirY * 16, 14, '#ffeaa7', 4.5, 2.5, 18);
+triggerShake(5, 3);
+} else {
+addFloatingText(en.x, en.y - en.r - 8, '-' + dmgDealt, '#ff7675');
+spawnParticles(en.x, en.y, 16, '#ff4757', 4.0, 3, 20);
+triggerShake(6, 4);
+}
+const angle = Math.atan2(en.y - knight.y, en.x - knight.x);
+const knockback = en.type === 'dragon' ? 5 : (en.type === 'shieldbearer' ? 10 : 22);
+en.x += Math.cos(angle) * knockback;
+en.y += Math.sin(angle) * knockback;
+resolveObstacles(en);
+}
+});
+}
+function update() {
+if (gameState !== 'playing') return;
+animTick++;
+if (shakeTime > 0) shakeTime--;
+// Обновление фонового пепла
+ambientAsh.forEach(function(a) {
+a.x += a.vx;
+a.y += a.vy + Math.sin(animTick * 0.03 + a.x * 0.02) * 0.3;
+if (a.x < 0) a.x = 800;
+if (a.y < 0) a.y = 500;
+if (a.y > 500) a.y = 0;
+});
+// Обновление частиц
+for (let i = particles.length - 1; i >= 0; i--) {
+const pt = particles[i];
+pt.x += pt.vx;
+pt.y += pt.vy;
+pt.vx *= 0.94;
+pt.vy *= 0.94;
+pt.life--;
+if (pt.life <= 0) particles.splice(i, 1);
+}
+let mx = touchInput.x;
+let my = touchInput.y;
+if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
+if (keys['KeyS'] || keys['ArrowDown']) my += 1;
+if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+knight.blocking = (keys['ShiftLeft'] || keys['ShiftRight'] || touchInput.blocking) && knight.stamina > 5;
+const curSpeed = knight.blocking ? knight.speed * 0.5 : knight.speed;
+const moveLen = Math.hypot(mx, my);
+if (moveLen > 0.1) {
+if (moveLen > 1) { mx /= moveLen; my /= moveLen; }
+knight.dirX = mx / Math.hypot(mx, my);
+knight.dirY = my / Math.hypot(mx, my);
+knight.x = Math.max(30, Math.min(770, knight.x + mx * curSpeed));
+knight.y = Math.max(60, Math.min(470, knight.y + my * curSpeed));
+knight.walkPhase += 0.25;
+resolveObstacles(knight);
+} else {
+knight.walkPhase = 0;
+}
+if (knight.blocking) {
+knight.stamina = Math.max(0, knight.stamina - 0.35);
+} else {
+knight.stamina = Math.min(knight.maxStamina, knight.stamina + 0.45);
+}
+if (knight.attackTimer > 0) knight.attackTimer--;
+if (knight.invuln > 0) knight.invuln--;
+potions.forEach(function(p) {
+if (!p.collected && Math.hypot(knight.x - p.x, knight.y - p.y) < knight.r + 14) {
+p.collected = true;
+knight.hp = Math.min(knight.maxHp, knight.hp + 45);
+addFloatingText(knight.x, knight.y - 20, '+45 HP', '#2ecc71');
+spawnParticles(p.x, p.y, 16, '#2ecc71', 3, 3, 20);
+}
+});
+for (let i = enemies.length - 1; i >= 0; i--) {
+const en = enemies[i];
+if (en.hp <= 0) {
+gainXp(en.xpReward);
+spawnParticles(en.x, en.y, 24, '#e74c3c', 4.5, 4, 25);
+triggerShake(8, 5);
+enemies.splice(i, 1);
+continue;
+}
+const dx = knight.x - en.x;
+const dy = knight.y - en.y;
+const dist = Math.hypot(dx, dy) || 1;
+if (en.type === 'spearman') {
+if (en.dashTimer > 0) {
+en.x = Math.max(30, Math.min(770, en.x + en.dashVx));
+en.y = Math.max(60, Math.min(470, en.y + en.dashVy));
+if (animTick % 2 === 0) spawnParticles(en.x, en.y, 2, '#a29bfe', 1.5, 2, 12);
+resolveObstacles(en);
+en.dashTimer--;
+if (dist < en.r + knight.r + 12 && en.cd <= 0) {
+damageKnight(en.dmg + 6);
+en.cd = 55;
+}
+} else if (en.dashWindup > 0) {
+en.dashWindup--;
+if (en.dashWindup === 0) {
+en.dashTimer = 14;
+en.dashVx = en.dirX * 7.5;
+en.dashVy = en.dirY * 7.5;
+}
+} else {
+en.dirX = dx / dist;
+en.dirY = dy / dist;
+if (dist > 110 && dist < 210 && en.cd <= 0) {
+en.dashWindup = 26;
+en.cd = 95;
+} else if (dist > en.r + knight.r + 8) {
+en.x += en.dirX * en.speed;
+en.y += en.dirY * en.speed;
+resolveObstacles(en);
+} else if (en.cd <= 0) {
+damageKnight(en.dmg);
+en.cd = 55;
+}
+}
+} else if (en.type === 'shieldbearer') {
+const targetAngle = Math.atan2(dy, dx);
+const curAngle = Math.atan2(en.dirY, en.dirX);
+let diff = targetAngle - curAngle;
+while (diff > Math.PI) diff -= Math.PI * 2;
+while (diff < -Math.PI) diff += Math.PI * 2;
+const newAngle = curAngle + Math.sign(diff) * Math.min(Math.abs(diff), 0.045);
+en.dirX = Math.cos(newAngle);
+en.dirY = Math.sin(newAngle);
+if (dist > en.r + knight.r + 4) {
+en.x += (dx / dist) * en.speed;
+en.y += (dy / dist) * en.speed;
+resolveObstacles(en);
+} else if (en.cd <= 0) {
+damageKnight(en.dmg);
+en.cd = 65;
+}
+} else if (en.type === 'dragon') {
+en.dirX = dx / dist;
+en.dirY = dy / dist;
+if (!en.enraged && en.hp <= en.maxHp * 0.5) {
+en.enraged = true;
+en.speed = 1.65;
+addFloatingText(en.x, en.y - 55, 'ЯРОСТЬ ДРАКОНА!', '#ff9f43');
+spawnParticles(en.x, en.y, 35, '#ff9f43', 5.5, 4.5, 30);
+triggerShake(15, 7);
+}
+if (dist > 165) {
+en.x += en.dirX * en.speed;
+en.y += en.dirY * en.speed;
+}
+if (dist < en.r + knight.r + 10 && en.cd <= 0) {
+damageKnight(en.dmg);
+en.cd = 55;
+}
+en.breathTimer++;
+const fireInterval = en.enraged ? 72 : 95;
+if (en.breathTimer >= fireInterval) {
+en.breathTimer = 0;
+const baseAngle = Math.atan2(dy, dx);
+const spreads = en.enraged ? [-0.34, -0.17, 0, 0.17, 0.34] : [-0.22, 0, 0.22];
+const fbSpeed = en.enraged ? 5.2 : 4.4;
+spawnParticles(en.x + Math.cos(baseAngle) * 35, en.y + Math.sin(baseAngle) * 35, 12, '#f39c12', 3, 3, 15);
+for (let s = 0; s < spreads.length; s++) {
+fireballs.push({
+x: en.x + Math.cos(baseAngle) * 38,
+y: en.y + Math.sin(baseAngle) * 38,
+vx: Math.cos(baseAngle + spreads[s]) * fbSpeed,
+vy: Math.sin(baseAngle + spreads[s]) * fbSpeed,
+r: en.enraged ? 10 : 9
+});
+}
+}
+}
+if (en.cd > 0) en.cd--;
+}
+for (let i = fireballs.length - 1; i >= 0; i--) {
+const fb = fireballs[i];
+fb.x += fb.vx;
+fb.y += fb.vy;
+// Огненный шлейф за шаром
+if (animTick % 2 === 0) {
+spawnParticles(fb.x, fb.y, 1, '#e67e22', 1.2, 3.5, 14);
+}
+let hitWall = false;
+for (let j = 0; j < obstacles.length; j++) {
+const ob = obstacles[j];
+if (Math.hypot(fb.x - ob.x, fb.y - ob.y) < fb.r + ob.r) {
+hitWall = true;
+break;
+}
+}
+if (hitWall || fb.x < 0 || fb.x > 800 || fb.y < 0 || fb.y > 500) {
+spawnParticles(fb.x, fb.y, 10, '#f39c12', 3, 3, 15);
+fireballs.splice(i, 1);
+continue;
+}
+if (Math.hypot(fb.x - knight.x, fb.y - knight.y) < fb.r + knight.r) {
+damageKnight(20);
+spawnParticles(fb.x, fb.y, 14, '#f39c12', 3.5, 3.5, 18);
+fireballs.splice(i, 1);
+}
+}
+for (let i = floatingTexts.length - 1; i >= 0; i--) {
+floatingTexts[i].y -= 0.6;
+floatingTexts[i].life--;
+if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+}
+if (enemies.length === 0) {
+if (stage < 3) {
+if (knight.x > 730) setupStage(stage + 1);
+} else if (princess) {
+if (Math.hypot(knight.x - princess.x, knight.y - princess.y) < 45) {
+endGame(true);
+}
+}
+}
+document.getElementById('hp-bar').style.width = (knight.hp / knight.maxHp * 100) + '%';
+document.getElementById('hp-text').textContent = knight.hp + '/' + knight.maxHp;
+document.getElementById('stamina-bar').style.width = (knight.stamina / knight.maxStamina * 100) + '%';
+document.getElementById('xp-bar').style.width = (knight.xp / knight.maxXp * 100) + '%';
+document.getElementById('lvl-text').textContent = 'Уровень ' + knight.level;
+document.getElementById('xp-text').textContent = knight.xp + '/' + knight.maxXp;
+}
+function damageKnight(amount) {
+if (knight.invuln > 0) return;
+let taken = amount;
+if (knight.blocking && knight.stamina >= 10) {
+knight.stamina -= 12;
+taken = Math.round(amount * 0.2);
+addFloatingText(knight.x, knight.y - 20, 'БЛОК (-' + taken + ')', '#3498db');
+spawnParticles(knight.x + knight.dirX * 18, knight.y + knight.dirY * 18, 12, '#f1c40f', 4, 2.5, 16);
+triggerShake(5, 3);
+} else {
+addFloatingText(knight.x, knight.y - 20, '-' + taken, '#e74c3c');
+spawnParticles(knight.x, knight.y, 12, '#e74c3c', 3.5, 3, 18);
+triggerShake(9, 6);
+}
+knight.hp -= taken;
+knight.invuln = 25;
+if (knight.hp <= 0) {
+knight.hp = 0;
+endGame(false);
+}
+}
+function drawShadow(x, y, rx, ry) {
+ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+ctx.beginPath();
+ctx.ellipse(x, y + 6, rx, ry, 0, 0, Math.PI * 2);
+ctx.fill();
+}
+function drawEnvironment() {
+if (stage === 1) {
+// Градиент почвы от пепельного к теплому земляному
+const bgGrad = ctx.createRadialGradient(400, 250, 50, 400, 250, 520);
+bgGrad.addColorStop(0, '#44352a');
+bgGrad.addColorStop(1, '#261d17');
+ctx.fillStyle = bgGrad;
+ctx.fillRect(0, 0, 800, 500);
+// Зернистость почвы
+ctx.fillStyle = 'rgba(20, 14, 10, 0.35)';
+for (let x = 20; x < 800; x += 65) {
+for (let y = 30; y < 500; y += 60) {
+ctx.beginPath();
+ctx.arc(x + (y % 30), y + (x % 20), 14, 0, Math.PI * 2);
+ctx.fill();
+}
+}
+// Грунтовая дорога с мягкими краями
+ctx.strokeStyle = 'rgba(88, 69, 55, 0.85)';
+ctx.lineWidth = 68;
+ctx.lineCap = 'round';
+ctx.beginPath();
+ctx.moveTo(0, 250);
+ctx.quadraticCurveTo(260, 290, 460, 230);
+ctx.quadraticCurveTo(630, 190, 800, 250);
+ctx.stroke();
+ctx.strokeStyle = 'rgba(110, 88, 70, 0.45)';
+ctx.lineWidth = 34;
+ctx.stroke();
+decor.forEach(function(d) {
+if (d.type === 'grass') {
+const gGrad = ctx.createRadialGradient(d.x, d.y, 5, d.x, d.y, d.r);
+gGrad.addColorStop(0, '#36522e');
+gGrad.addColorStop(1, 'rgba(45, 66, 39, 0)');
+ctx.fillStyle = gGrad;
+ctx.beginPath();
+ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.strokeStyle = '#4c7341';
+ctx.lineWidth = 2;
+for (let i = -15; i <= 15; i += 10) {
+ctx.beginPath();
+ctx.moveTo(d.x + i, d.y + 5);
+ctx.lineTo(d.x + i - 3, d.y - 6);
+ctx.moveTo(d.x + i, d.y + 5);
+ctx.lineTo(d.x + i + 4, d.y - 5);
+ctx.stroke();
+}
+} else if (d.type === 'crater') {
+const cGrad = ctx.createRadialGradient(d.x, d.y, 4, d.x, d.y, d.r);
+cGrad.addColorStop(0, '#120e0c');
+cGrad.addColorStop(0.8, '#241c18');
+cGrad.addColorStop(1, 'rgba(36, 28, 24, 0)');
+ctx.fillStyle = cGrad;
+ctx.beginPath();
+ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+ctx.fill();
+} else if (d.type === 'embers') {
+const glow = 0.45 + Math.sin(animTick * 0.08 + d.x) * 0.25;
+const eGrad = ctx.createRadialGradient(d.x, d.y, 1, d.x, d.y, d.r * 1.4);
+eGrad.addColorStop(0, 'rgba(255, 159, 67, ' + glow + ')');
+eGrad.addColorStop(1, 'rgba(230, 126, 34, 0)');
+ctx.fillStyle = eGrad;
+ctx.beginPath();
+ctx.arc(d.x, d.y, d.r * 1.4, 0, Math.PI * 2);
+ctx.fill();
+}
+});
+// Вход в Черную Башню справа
+ctx.fillStyle = '#121218';
+ctx.fillRect(755, 0, 45, 500);
+ctx.fillStyle = '#2c2c38';
+ctx.fillRect(750, 0, 8, 500);
+} else if (stage === 2) {
+ctx.fillStyle = '#1d2029';
+ctx.fillRect(0, 0, 800, 500);
+ctx.strokeStyle = '#13151c';
+ctx.lineWidth = 2;
+for (let x = 0; x < 800; x += 80) {
+for (let y = 0; y < 500; y += 80) {
+ctx.strokeRect(x, y, 80, 80);
+}
+}
+// Королевский ковер с золотой каймой
+ctx.fillStyle = '#591c21';
+ctx.fillRect(0, 215, 800, 70);
+ctx.strokeStyle = '#d4ac0d';
+ctx.lineWidth = 2;
+ctx.strokeRect(0, 220, 800, 60);
+ctx.fillStyle = '#11131a';
+ctx.fillRect(0, 0, 800, 48);
+decor.forEach(function(d) {
+if (d.type === 'torch') {
+const flicker = Math.sin(animTick * 0.2 + d.x) * 5;
+const tGrad = ctx.createRadialGradient(d.x, d.y + 15, 2, d.x, d.y + 15, 65 + flicker);
+tGrad.addColorStop(0, 'rgba(255, 177, 66, 0.45)');
+tGrad.addColorStop(1, 'rgba(243, 156, 18, 0)');
+ctx.fillStyle = tGrad;
+ctx.beginPath();
+ctx.arc(d.x, d.y + 15, 65 + flicker, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#ffeaa7';
+ctx.beginPath();
+ctx.arc(d.x, d.y, 5, 0, Math.PI * 2);
+ctx.fill();
+}
+});
+} else if (stage === 3) {
+const dGrad = ctx.createRadialGradient(550, 250, 40, 400, 250, 520);
+dGrad.addColorStop(0, '#2c1618');
+dGrad.addColorStop(1, '#120a0b');
+ctx.fillStyle = dGrad;
+ctx.fillRect(0, 0, 800, 500);
+decor.forEach(function(d) {
+if (d.type === 'lava_crack') {
+ctx.strokeStyle = '#ff6b6b';
+ctx.lineWidth = 4;
+ctx.beginPath();
+ctx.moveTo(d.x - 20, d.y - 10);
+ctx.lineTo(d.x, d.y + 5);
+ctx.lineTo(d.x + 25, d.y - 5);
+ctx.stroke();
+ctx.strokeStyle = '#ffeaa7';
+ctx.lineWidth = 1.5;
+ctx.stroke();
+}
+});
+ctx.fillStyle = '#0d0809';
+for (let x = 0; x < 800; x += 60) {
+ctx.fillRect(x, 0, 35, 22);
+ctx.fillRect(x, 478, 35, 22);
+}
+}
+// Преграды с объемными тенями
+obstacles.forEach(function(ob) {
+drawShadow(ob.x + 3, ob.y + 4, ob.r, ob.r * 0.85);
+if (ob.kind === 'rock') {
+const rGrad = ctx.createRadialGradient(ob.x - 5, ob.y - 5, 2, ob.x, ob.y, ob.r);
+rGrad.addColorStop(0, '#7f7a76');
+rGrad.addColorStop(1, '#3d3936');
+ctx.fillStyle = rGrad;
+ctx.beginPath();
+ctx.arc(ob.x, ob.y, ob.r, 0, Math.PI * 2);
+ctx.fill();
+} else if (ob.kind === 'wagon') {
+ctx.fillStyle = '#6e472b';
+ctx.fillRect(ob.x - 20, ob.y - 12, 40, 24);
+ctx.strokeStyle = '#3d2514';
+ctx.lineWidth = 3;
+ctx.strokeRect(ob.x - 20, ob.y - 12, 40, 24);
+ctx.beginPath();
+ctx.arc(ob.x + 12, ob.y + 10, 11, 0, Math.PI * 2);
+ctx.stroke();
+} else if (ob.kind === 'pillar') {
+const pGrad = ctx.createRadialGradient(ob.x - 6, ob.y - 6, 3, ob.x, ob.y, ob.r);
+pGrad.addColorStop(0, '#636a7a');
+pGrad.addColorStop(1, '#2b2f38');
+ctx.fillStyle = pGrad;
+ctx.beginPath();
+ctx.arc(ob.x, ob.y, ob.r, 0, Math.PI * 2);
+ctx.fill();
+} else if (ob.kind === 'brazier') {
+const bGlow = ctx.createRadialGradient(ob.x, ob.y, 4, ob.x, ob.y, ob.r * 2.4);
+bGlow.addColorStop(0, 'rgba(243, 156, 18, 0.45)');
+bGlow.addColorStop(1, 'rgba(243, 156, 18, 0)');
+ctx.fillStyle = bGlow;
+ctx.beginPath();
+ctx.arc(ob.x, ob.y, ob.r * 2.4, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#2d3436';
+ctx.beginPath();
+ctx.arc(ob.x, ob.y, ob.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#ff9f43';
+ctx.beginPath();
+ctx.arc(ob.x, ob.y, ob.r * 0.65, 0, Math.PI * 2);
+ctx.fill();
+}
+});
+}
+function drawEnemies() {
+enemies.forEach(function(en) {
+const angle = Math.atan2(en.dirY, en.dirX);
+drawShadow(en.x, en.y + 4, en.r, en.r * 0.8);
+if (en.type === 'spearman') {
+ctx.save();
+ctx.translate(en.x, en.y);
+ctx.rotate(angle);
+if (en.dashWindup > 0) {
+ctx.strokeStyle = 'rgba(255, 71, 87, 0.65)';
+ctx.lineWidth = 3;
+ctx.beginPath();
+ctx.moveTo(0, 0);
+ctx.lineTo(135, 0);
+ctx.stroke();
+}
+ctx.strokeStyle = '#d35400';
+ctx.lineWidth = 4;
+ctx.beginPath();
+ctx.moveTo(-14, 8);
+ctx.lineTo(36, 8);
+ctx.stroke();
+ctx.fillStyle = en.dashWindup > 0 ? '#ff4757' : '#dfe6e9';
+ctx.beginPath();
+ctx.moveTo(44, 8);
+ctx.lineTo(34, 4);
+ctx.lineTo(34, 12);
+ctx.fill();
+ctx.restore();
+const sGrad = ctx.createRadialGradient(en.x - 4, en.y - 4, 2, en.x, en.y, en.r);
+sGrad.addColorStop(0, '#a55eea');
+sGrad.addColorStop(1, '#5f27cd');
+ctx.fillStyle = sGrad;
+ctx.beginPath();
+ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#341f97';
+ctx.beginPath();
+ctx.arc(en.x, en.y, en.r * 0.6, 0, Math.PI * 2);
+ctx.fill();
+} else if (en.type === 'shieldbearer') {
+const shGrad = ctx.createRadialGradient(en.x - 4, en.y - 4, 2, en.x, en.y, en.r);
+shGrad.addColorStop(0, '#576574');
+shGrad.addColorStop(1, '#222f3e');
+ctx.fillStyle = shGrad;
+ctx.beginPath();
+ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.strokeStyle = '#f39c12';
+ctx.lineWidth = 6;
+ctx.beginPath();
+ctx.arc(en.x, en.y, en.r + 5, angle - 0.95, angle + 0.95);
+ctx.stroke();
+} else if (en.type === 'dragon') {
+if (en.enraged) {
+const rageGlow = ctx.createRadialGradient(en.x, en.y, 10, en.x, en.y, 90);
+rageGlow.addColorStop(0, 'rgba(255, 71, 87, 0.35)');
+rageGlow.addColorStop(1, 'rgba(255, 71, 87, 0)');
+ctx.fillStyle = rageGlow;
+ctx.beginPath();
+ctx.arc(en.x, en.y, 90, 0, Math.PI * 2);
+ctx.fill();
+}
+ctx.save();
+ctx.translate(en.x, en.y);
+ctx.rotate(angle);
+const wingFlap = Math.sin(animTick * 0.14) * 14;
+ctx.strokeStyle = en.enraged ? '#ff4757' : '#922b21';
+ctx.lineWidth = 10;
+ctx.lineCap = 'round';
+ctx.beginPath();
+ctx.moveTo(-30, 0);
+ctx.quadraticCurveTo(-65, Math.sin(animTick * 0.1) * 16, -90, 0);
+ctx.stroke();
+ctx.fillStyle = en.enraged ? '#b33939' : '#7b241c';
+ctx.beginPath();
+ctx.moveTo(0, -10);
+ctx.lineTo(-25, -75 - wingFlap);
+ctx.lineTo(25, -35);
+ctx.fill();
+ctx.beginPath();
+ctx.moveTo(0, 10);
+ctx.lineTo(-25, 75 + wingFlap);
+ctx.lineTo(25, 35);
+ctx.fill();
+const dBodyGrad = ctx.createRadialGradient(5, -5, 5, 0, 0, en.r);
+dBodyGrad.addColorStop(0, en.enraged ? '#ff6b6b' : '#e74c3c');
+dBodyGrad.addColorStop(1, '#78281f');
+ctx.fillStyle = dBodyGrad;
+ctx.beginPath();
+ctx.arc(0, 0, en.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#4a120c';
+ctx.beginPath();
+ctx.moveTo(25, -14);
+ctx.lineTo(5, -28);
+ctx.lineTo(15, -8);
+ctx.fill();
+ctx.beginPath();
+ctx.moveTo(25, 14);
+ctx.lineTo(5, 28);
+ctx.lineTo(15, 8);
+ctx.fill();
+ctx.fillStyle = '#ffeaa7';
+ctx.beginPath();
+ctx.arc(26, -9, 4, 0, Math.PI * 2);
+ctx.arc(26, 9, 4, 0, Math.PI * 2);
+ctx.fill();
+ctx.restore();
+}
+const barW = en.type === 'dragon' ? 100 : 44;
+ctx.fillStyle = 'rgba(0,0,0,0.75)';
+ctx.fillRect(en.x - barW / 2, en.y - en.r - 18, barW, 6);
+ctx.fillStyle = en.type === 'dragon' && en.enraged ? '#ff9f43' : '#ff4757';
+ctx.fillRect(en.x - barW / 2, en.y - en.r - 18, barW * (en.hp / en.maxHp), 6);
+});
+}
+function draw() {
+ctx.save();
+if (shakeTime > 0) {
+const sx = (Math.random() - 0.5) * shakeIntensity * 2;
+const sy = (Math.random() - 0.5) * shakeIntensity * 2;
+ctx.translate(sx, sy);
+}
+drawEnvironment();
+if (enemies.length === 0 && stage < 3) {
+const pulse = 0.2 + Math.sin(animTick * 0.1) * 0.1;
+ctx.fillStyle = 'rgba(46, 204, 113, ' + pulse + ')';
+ctx.fillRect(740, 180, 60, 140);
+ctx.fillStyle = '#2ecc71';
+ctx.font = 'bold 14px sans-serif';
+ctx.fillText('ДАЛЕЕ →', 725, 170);
+}
+potions.forEach(function(p) {
+if (!p.collected) {
+drawShadow(p.x, p.y + 2, 10, 7);
+const pGlow = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 18);
+pGlow.addColorStop(0, 'rgba(255, 71, 87, 0.6)');
+pGlow.addColorStop(1, 'rgba(255, 71, 87, 0)');
+ctx.fillStyle = pGlow;
+ctx.beginPath();
+ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#ff4757';
+ctx.beginPath();
+ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#fff';
+ctx.font = 'bold 11px sans-serif';
+ctx.fillText('+HP', p.x - 11, p.y - 14);
+}
+});
+if (princess) {
+drawShadow(princess.x, princess.y + 4, 15, 11);
+ctx.fillStyle = '#ff79c6';
+ctx.beginPath();
+ctx.arc(princess.x, princess.y, princess.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#f1c40f';
+ctx.fillRect(princess.x - 8, princess.y - 22, 16, 6);
+if (enemies.length > 0) {
+ctx.strokeStyle = '#95a5a6';
+ctx.lineWidth = 3;
+ctx.strokeRect(princess.x - 24, princess.y - 26, 48, 52);
+} else {
+ctx.fillStyle = '#2ecc71';
+ctx.font = 'bold 13px sans-serif';
+ctx.fillText('Подойди, чтобы спасти!', princess.x - 75, princess.y - 34);
+}
+}
+drawEnemies();
+// Огненные шары со свечением
+fireballs.forEach(function(fb) {
+const fbGlow = ctx.createRadialGradient(fb.x, fb.y, 2, fb.x, fb.y, fb.r * 2.2);
+fbGlow.addColorStop(0, 'rgba(255, 165, 2, 0.75)');
+fbGlow.addColorStop(1, 'rgba(255, 165, 2, 0)');
+ctx.fillStyle = fbGlow;
+ctx.beginPath();
+ctx.arc(fb.x, fb.y, fb.r * 2.2, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#ffa502';
+ctx.beginPath();
+ctx.arc(fb.x, fb.y, fb.r, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#ffffff';
+ctx.beginPath();
+ctx.arc(fb.x, fb.y, fb.r * 0.45, 0, Math.PI * 2);
+ctx.fill();
+});
+// Отрисовка рыцаря с тенью, плащом и анимацией шагов
+drawShadow(knight.x, knight.y + 4, knight.r, knight.r * 0.8);
+ctx.save();
+if (knight.invuln > 0 && Math.floor(knight.invuln / 4) % 2 === 0) ctx.globalAlpha = 0.5;
+const kAngle = Math.atan2(knight.dirY, knight.dirX);
+const walkSway = Math.sin(knight.walkPhase) * 2.5;
+ctx.translate(knight.x, knight.y);
+ctx.rotate(kAngle);
+// Колышущийся плащ за спиной
+ctx.fillStyle = '#c0392b';
+ctx.beginPath();
+ctx.moveTo(-8, -12);
+ctx.lineTo(-26, walkSway);
+ctx.lineTo(-8, 12);
+ctx.fill();
+// Меч в руке (поворачивается при ударе)
+ctx.save();
+if (knight.attackTimer > 0) {
+const swingProgress = (14 - knight.attackTimer) / 14;
+ctx.rotate(-1.1 + swingProgress * 2.2);
+}
+ctx.fillStyle = '#dfe6e9';
+ctx.fillRect(6, 10, 24, 4);
+ctx.fillStyle = '#f1c40f';
+ctx.fillRect(6, 7, 3, 10);
+ctx.restore();
+// Броня с градиентом
+const kGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, knight.r);
+kGrad.addColorStop(0, '#54a0ff');
+kGrad.addColorStop(1, '#1e3799');
+ctx.fillStyle = kGrad;
+ctx.beginPath();
+ctx.arc(0, 0, knight.r, 0, Math.PI * 2);
+ctx.fill();
+// Шлем и забрало
+ctx.fillStyle = '#ecf0f1';
+ctx.beginPath();
+ctx.arc(2, 0, knight.r * 0.65, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#2c3e50';
+ctx.fillRect(6, -5, 4, 10);
+ctx.restore();
+// Щит при блоке со свечением
+if (knight.blocking) {
+ctx.strokeStyle = '#ffeaa7';
+ctx.lineWidth = 5;
+ctx.beginPath();
+ctx.arc(knight.x, knight.y, knight.r + 7, kAngle - 0.9, kAngle + 0.9);
+ctx.stroke();
+}
+// Дуга взмаха мечом
+if (knight.attackTimer > 0) {
+ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+ctx.lineWidth = 6;
+ctx.beginPath();
+ctx.arc(knight.x, knight.y, 44, kAngle - 0.85, kAngle + 0.85);
+ctx.stroke();
+}
+// Отрисовка частиц (искры, дым, эффекты)
+particles.forEach(function(pt) {
+ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+ctx.fillStyle = pt.color;
+ctx.beginPath();
+ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+ctx.fill();
+});
+ctx.globalAlpha = 1;
+// Фоновый пепел и угольки на 1-й и 3-й локациях
+if (stage === 1 || stage === 3) {
+ambientAsh.forEach(function(a) {
+ctx.fillStyle = a.ember ? 'rgba(255, 159, 67, 0.65)' : 'rgba(200, 200, 210, 0.35)';
+ctx.beginPath();
+ctx.arc(a.x, a.y, a.size, 0, Math.PI * 2);
+ctx.fill();
+});
+}
+// Всплывающие цифры урона, опыта и уровня
+floatingTexts.forEach(function(ft) {
+ctx.fillStyle = ft.color;
+ctx.font = 'bold 14px sans-serif';
+ctx.fillText(ft.text, ft.x - 22, ft.y);
+});
+ctx.restore();
+}
+function loop() {
+update();
+draw();
+if (gameState === 'playing') requestAnimationFrame(loop);
+}
