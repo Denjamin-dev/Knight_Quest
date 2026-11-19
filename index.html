@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Клятва Рыцаря: Башня Дракона</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
   html, body { background: #09090d; color: #eee; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  #game-container { position: relative; width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; background: #16161e; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  #game-container { position: relative; width: 100vw; height: 100vh; background: #16161e; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { display: block; width: 100%; height: 100%; object-fit: contain; touch-action: none; }
   
   .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 16, 0.96); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; z-index: 999; cursor: pointer; }
   h1 { color: #f5b041; font-size: clamp(20px, 5vw, 32px); margin-bottom: 12px; text-shadow: 0 0 18px rgba(245, 176, 65, 0.45); pointer-events: none; }
   p { font-size: clamp(13px, 3vw, 16px); line-height: 1.5; max-width: 580px; color: #d0d0e0; margin-bottom: 24px; pointer-events: none; }
   .main-btn { background: linear-gradient(180deg, #e67e22, #c0392b); color: #fff; border: 2px solid #f39c12; padding: 16px 38px; font-size: 20px; font-weight: bold; border-radius: 10px; box-shadow: 0 4px 20px rgba(211, 84, 0, 0.6); pointer-events: none; }
+  #status-badge { margin-top: 16px; font-size: 13px; color: #2ecc71; font-weight: bold; pointer-events: none; }
   .hidden { display: none !important; }
 
   #hud { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 5; gap: 8px; }
@@ -61,14 +62,14 @@
     </div>
   </div>
 
-  <!-- Нажатие в любое место этого экрана запустит игру -->
   <div id="start-screen" class="overlay">
     <h1>КЛЯТВА ПОСЛЕДНЕГО ГВАРДЕЙЦА</h1>
     <p>
       Королевская армия пала в один день. Древний Дракон обрушился с небес, обратив в пепел полки твоего короля, и унес Принцессу в заброшенную Черную Башню.<br><br>
-      <b>Нажми в любое место экрана, чтобы начать!</b>
+      Сквозь дым и пепел ты идешь к башне. Обходи тяжелых щитоносцев со спины, уклоняйся от рывков копейщиков и держи блок!
     </p>
     <div class="main-btn">ВСТУПИТЬ В БОЙ</div>
+    <div id="status-badge">Загрузка скрипта...</div>
   </div>
 
   <div id="end-screen" class="overlay hidden">
@@ -93,19 +94,21 @@ let shakeIntensity = 0;
 const keys = {};
 const touchInput = { x: 0, y: 0, blocking: false };
 
-// Ловим запуск любым способом (клик, тап, касание) по всему экрану заставки
 const startScreen = document.getElementById('start-screen');
 const endScreen = document.getElementById('end-screen');
+const statusBadge = document.getElementById('status-badge');
+
+statusBadge.textContent = '✓ Игра готова — нажми в любое место экрана';
 
 function handleStartTrigger(e) {
-  if (e) e.preventDefault();
+  if (e && e.cancelable) e.preventDefault();
   if (gameState === 'menu') {
     startGame();
   }
 }
 
 function handleRestartTrigger(e) {
-  if (e) e.preventDefault();
+  if (e && e.cancelable) e.preventDefault();
   if (gameState === 'end') {
     restartGame();
   }
@@ -221,35 +224,34 @@ const knight = {
   invuln: 0
 };
 
-let enemies = [];
-let fireballs = [];
-let potions = [];
-let obstacles = [];
-let decor = [];
-let particles = [];
-let ambientAsh = [];
-let floatingTexts = [];
+let enemies = new Array();
+let fireballs = new Array();
+let potions = new Array();
+let obstacles = new Array();
+let decor = new Array();
+let particles = new Array();
+let ambientAsh = new Array();
+let floatingTexts = new Array();
 let princess = null;
 
 function spawnParticles(x, y, count, color, speedMax, sizeMax, lifeMax) {
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const spd = 0.5 + Math.random() * speedMax;
-    particles.push({
-      x: x, y: y,
-      vx: Math.cos(angle) * spd,
-      vy: Math.sin(angle) * spd,
-      size: 1.5 + Math.random() * sizeMax,
-      color: color,
-      life: 15 + Math.floor(Math.random() * lifeMax),
-      maxLife: 15 + lifeMax
-    });
-  }
+particles.push({
+x: x, y: y,
+vx: Math.cos(angle) * spd,
+vy: Math.sin(angle) * spd,
+size: 1.5 + Math.random() * sizeMax,
+color: color,
+life: 15 + Math.floor(Math.random() * lifeMax),
+maxLife: 15 + lifeMax
+});
 }
-
+}
 function initAmbientAsh() {
-  ambientAsh = [];
-  for (let i = 0; i < 35; i++) {
+ambientAsh = new Array();
+for (let i = 0; i < 35; i++) {
 ambientAsh.push({
 x: Math.random() * 800, y: Math.random() * 500,
 vx: -0.4 - Math.random() * 0.6,
@@ -280,9 +282,9 @@ spawnParticles(knight.x, knight.y, 30, '#2ecc71', 4.5, 4, 30);
 }
 }
 function generateEnvironment(num) {
-obstacles = [];
-decor = [];
-particles = [];
+obstacles = new Array();
+decor = new Array();
+particles = new Array();
 if (num === 1) {
 decor.push(
 { type: 'grass', x: 140, y: 90, r: 45 },
@@ -325,9 +327,9 @@ decor.push(
 }
 function setupStage(num) {
 stage = num;
-fireballs = [];
-potions = [];
-enemies = [];
+fireballs = new Array();
+potions = new Array();
+enemies = new Array();
 princess = null;
 knight.x = 80;
 knight.y = 250;
@@ -398,7 +400,7 @@ knight.hp = 100;
 knight.maxStamina = 100;
 knight.stamina = 100;
 knight.damage = 25;
-floatingTexts = [];
+floatingTexts = new Array();
 initAmbientAsh();
 setupStage(1);
 gameState = 'playing';
@@ -484,7 +486,7 @@ if (a.y < 0) a.y = 500;
 if (a.y > 500) a.y = 0;
 });
 for (let i = particles.length - 1; i >= 0; i--) {
-const pt = particles[i];
+const pt = particles.at(i);
 pt.x += pt.vx;
 pt.y += pt.vy;
 pt.vx *= 0.94;
@@ -494,11 +496,11 @@ if (pt.life <= 0) particles.splice(i, 1);
 }
 let mx = touchInput.x;
 let my = touchInput.y;
-if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
-if (keys['KeyS'] || keys['ArrowDown']) my += 1;
-if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
-if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
-knight.blocking = (keys['ShiftLeft'] || keys['ShiftRight'] || touchInput.blocking) && knight.stamina > 5;
+if (keys.KeyW || keys.ArrowUp) my -= 1;
+if (keys.KeyS || keys.ArrowDown) my += 1;
+if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+if (keys.KeyD || keys.ArrowRight) mx += 1;
+knight.blocking = (keys.ShiftLeft || keys.ShiftRight || touchInput.blocking) && knight.stamina > 5;
 const curSpeed = knight.blocking ? knight.speed * 0.5 : knight.speed;
 const moveLen = Math.hypot(mx, my);
 if (moveLen > 0.1) {
@@ -528,7 +530,7 @@ spawnParticles(p.x, p.y, 16, '#2ecc71', 3, 3, 20);
 }
 });
 for (let i = enemies.length - 1; i >= 0; i--) {
-const en = enemies[i];
+const en = enemies.at(i);
 if (en.hp <= 0) {
 gainXp(en.xpReward);
 spawnParticles(en.x, en.y, 24, '#e74c3c', 4.5, 4, 25);
@@ -612,15 +614,16 @@ const fireInterval = en.enraged ? 72 : 95;
 if (en.breathTimer >= fireInterval) {
 en.breathTimer = 0;
 const baseAngle = Math.atan2(dy, dx);
-const spreads = en.enraged ? [-0.34, -0.17, 0, 0.17, 0.34] : [-0.22, 0, 0.22];
+const spreads = en.enraged ? new Array(-0.34, -0.17, 0, 0.17, 0.34) : new Array(-0.22, 0, 0.22);
 const fbSpeed = en.enraged ? 5.2 : 4.4;
 spawnParticles(en.x + Math.cos(baseAngle) * 35, en.y + Math.sin(baseAngle) * 35, 12, '#f39c12', 3, 3, 15);
 for (let s = 0; s < spreads.length; s++) {
+const sp = spreads.at(s);
 fireballs.push({
 x: en.x + Math.cos(baseAngle) * 38,
 y: en.y + Math.sin(baseAngle) * 38,
-vx: Math.cos(baseAngle + spreads[s]) * fbSpeed,
-vy: Math.sin(baseAngle + spreads[s]) * fbSpeed,
+vx: Math.cos(baseAngle + sp) * fbSpeed,
+vy: Math.sin(baseAngle + sp) * fbSpeed,
 r: en.enraged ? 10 : 9
 });
 }
@@ -629,7 +632,7 @@ r: en.enraged ? 10 : 9
 if (en.cd > 0) en.cd--;
 }
 for (let i = fireballs.length - 1; i >= 0; i--) {
-const fb = fireballs[i];
+const fb = fireballs.at(i);
 fb.x += fb.vx;
 fb.y += fb.vy;
 if (animTick % 2 === 0) {
@@ -637,7 +640,7 @@ spawnParticles(fb.x, fb.y, 1, '#e67e22', 1.2, 3.5, 14);
 }
 let hitWall = false;
 for (let j = 0; j < obstacles.length; j++) {
-const ob = obstacles[j];
+const ob = obstacles.at(j);
 if (Math.hypot(fb.x - ob.x, fb.y - ob.y) < fb.r + ob.r) {
 hitWall = true;
 break;
@@ -655,9 +658,10 @@ fireballs.splice(i, 1);
 }
 }
 for (let i = floatingTexts.length - 1; i >= 0; i--) {
-floatingTexts[i].y -= 0.6;
-floatingTexts[i].life--;
-if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+const ft = floatingTexts.at(i);
+ft.y -= 0.6;
+ft.life--;
+if (ft.life <= 0) floatingTexts.splice(i, 1);
 }
 if (enemies.length === 0) {
 if (stage < 3) {
@@ -1047,7 +1051,8 @@ ctx.fillText('Подойди, чтобы спасти!', princess.x - 75, prince
 }
 }
 drawEnemies();
-fireballs.forEach(function(fb) {
+fireballs.forEach(function
+(fb) {
 const fbGlow = ctx.createRadialGradient(fb.x, fb.y, 2, fb.x, fb.y, fb.r * 2.2);
 fbGlow.addColorStop(0, 'rgba(255, 165, 2, 0.75)');
 fbGlow.addColorStop(1, 'rgba(255, 165, 2, 0)');
@@ -1060,8 +1065,7 @@ ctx.beginPath();
 ctx.arc(fb.x, fb.y, fb.r, 0, Math.PI * 2);
 ctx.fill();
 ctx.fillStyle = '#ffffff';
-ctx.begin
-Path();
+ctx.beginPath();
 ctx.arc(fb.x, fb.y, fb.r * 0.45, 0, Math.PI * 2);
 ctx.fill();
 });
